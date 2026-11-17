@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#090d16"><title>EDRIS RACING</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080d14;color:#fff;font-family:Tahoma,Arial,sans-serif}
+canvas{display:block;width:100vw;height:100vh;touch-action:none}
+#hud{position:fixed;inset:0;pointer-events:none}
+.top{display:flex;justify-content:space-between;gap:8px;padding:12px}
+.box{background:#090e18cc;border:1px solid #d9b45e;border-radius:13px;padding:8px 12px;box-shadow:0 5px 22px #0009;font-size:12px}
+.logo{font-size:19px;font-weight:1000;letter-spacing:1px;color:#f8d67e;text-shadow:0 0 12px #c58b36}
+.val{font-size:20px;font-weight:bold;color:#fff}
+#controls{position:fixed;bottom:17px;left:0;right:0;display:flex;justify-content:space-between;padding:0 18px;pointer-events:none;align-items:end}
+.cluster{display:flex;gap:12px;pointer-events:auto}
+.btn{width:65px;height:65px;border-radius:18px;border:1px solid #f4d17b;background:#111a2bd9;color:#fff;font-size:25px;font-weight:bold;display:grid;place-items:center;touch-action:none;user-select:none;box-shadow:0 5px 18px #0008}
+.btn.gas{height:78px;width:78px;border-radius:50%;background:linear-gradient(145deg,#d5a843,#80551c);color:#17110a;font-size:14px}
+.btn.brake{height:64px;width:64px;border-radius:50%;background:#8f2828d9;font-size:13px}
+#overlay{position:fixed;inset:0;z-index:4;display:flex;align-items:center;justify-content:center;padding:18px;background:radial-gradient(ellipse at center,#263044ed,#070b12f8)}
+.card{width:min(470px,100%);padding:28px 22px;border-radius:24px;text-align:center;background:linear-gradient(145deg,#182234f5,#080d16f5);border:1px solid #d8b35f;box-shadow:0 20px 80px #000c}
+h1{font-size:clamp(34px,9vw,54px);margin:0;color:#f6d47b;letter-spacing:2px;text-shadow:0 0 22px #ba842c}
+.tag{color:#e7c77d;font-size:17px;margin:6px 0 15px;font-weight:bold}
+p{line-height:1.9;color:#dce2ed;font-size:14px}
+button{border:0;border-radius:13px;padding:14px 30px;font-size:17px;font-weight:bold;background:linear-gradient(135deg,#ffe69b,#b77a25);color:#17110a}
+.note{font-size:11px;color:#aeb8c9;margin-top:14px;line-height:1.8}
+#toast{position:absolute;top:23%;left:50%;transform:translateX(-50%);font-weight:bold;font-size:18px;text-shadow:0 3px 8px #000}
+@media(hover:hover) and (pointer:fine){#controls{opacity:.5}}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="hud"><div class="top">
+<div class="box"><div class="logo">EDRIS RACING</div><div>مسابقه لوکس خیابانی</div></div>
+<div class="box">سرعت<br><span class="val" id="speed">۰</span> <small>KM/H</small></div>
+<div class="box">امتیاز<br><span class="val" id="score">۰</span></div>
+</div><div id="toast"></div></div>
+<div id="controls">
+<div class="cluster"><div class="btn" data-k="left">◀</div><div class="btn" data-k="right">▶</div></div>
+<div class="cluster"><div class="btn brake" data-k="brake">ترمز</div><div class="btn gas" data-k="gas">گاز</div></div>
+</div>
+<div id="overlay"><div class="card"><h1>EDRIS RACING</h1><div class="tag">مسابقه‌دهندهٔ خیابان</div>
+<p>پشت فرمان موتر اسپورت خود بنشین!<br>از موترهای دیگر سبقت بگیر، تصادف نکن و رکورد خودت را بشکن.</p>
+<button id="start">شروع مسابقه</button>
+<div class="note">موبایل: دکمه‌های چپ و راست، گاز و ترمز<br>کمپیوتر: کلیدهای ← → و ↑ برای گاز، ↓ برای ترمز<br>برای تجربه بهتر، موبایل را افقی نگه دار.</div></div></div>
+<script>
+(()=>{const c=document.getElementById('c'),x=c.getContext('2d');let w,h,dpr,active=false,last=0,road=0,playerX=0,speed=0,score=0,traffic=[],keys={},spawn=0,shake=0;
+const $=id=>document.getElementById(id);
+function resize(){dpr=devicePixelRatio||1;w=innerWidth;h=innerHeight;c.width=w*dpr;c.height=h*dpr;x.setTransform(dpr,0,0,dpr,0,0)}addEventListener('resize',resize);resize();
+function down(k,v){keys[k]=v}
+addEventListener('keydown',e=>{let m={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'gas',ArrowDown:'brake'};if(m[e.key]){e.preventDefault();down(m[e.key],true)}});
+addEventListener('keyup',e=>{let m={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'gas',ArrowDown:'brake'};if(m[e.key])down(m[e.key],false)});
+document.querySelectorAll('[data-k]').forEach(b=>{let k=b.dataset.k;b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);down(k,true)});['pointerup','pointercancel','lostpointercapture'].forEach(ev=>b.addEventListener(ev,()=>down(k,false)))});
+function reset(){road=0;playerX=0;speed=0;score=0;traffic=[];spawn=.8;shake=0}
+$('start').onclick=()=>{reset();active=true;$('overlay').style.display='none';last=performance.now();requestAnimationFrame(loop)};
+function roadGeom(y){let t=y/h;let half=w*(.18+.24*t);return {l:w/2-half,r:w/2+half}}
+function car(cx,cy,s,color,player=false){x.save();x.translate(cx,cy);x.scale(s,s);
+ // shadow
+ x.fillStyle='#0009';x.beginPath();x.ellipse(0,8,25,43,0,0,Math.PI*2);x.fill();
+ // body
+ let g=x.createLinearGradient(-22,0,22,0);g.addColorStop(0,'#171b25');g.addColorStop(.22,color);g.addColorStop(.75,color);g.addColorStop(1,'#11151d');
+ x.fillStyle=g;x.beginPath();x.moveTo(-15,35);x.lineTo(-21,12);x.lineTo(-17,-23);x.quadraticCurveTo(-15,-34,-8,-37);x.lineTo(8,-37);x.quadraticCurveTo(17,-33,18,-22);x.lineTo(21,12);x.lineTo(15,35);x.closePath();x.fill();
+ x.fillStyle='#101d2b';x.beginPath();x.moveTo(-14,-15);x.lineTo(-10,-29);x.quadraticCurveTo(0,-34,10,-29);x.lineTo(14,-15);x.closePath();x.fill();
+ x.fillStyle='#7eacc1';x.fillRect(-12,-13,24,2);x.fillStyle='#ffe6a0';x.fillRect(-15,27,8,4);x.fillRect(7,27,8,4);
+ x.fillStyle='#090b10';x.fillRect(-22,-14,5,17);x.fillRect(17,-14,5,17);x.fillRect(-22,20,5,16);x.fillRect(17,20,5,16);
+ if(player){x.strokeStyle='#f7d987';x.lineWidth=1.5;x.stroke();x.fillStyle='#f2d078';x.fillRect(-3,-34,6,2)}
+ x.restore()}
+function loop(t){if(!active)return;let dt=Math.min((t-last)/1000,.035);last=t;update(dt);draw();requestAnimationFrame(loop)}
+function update(dt){
+ if(keys.gas)speed=Math.min(230,speed+100*dt);else speed=Math.max(90,speed-28*dt);
+ if(keys.brake)speed=Math.max(0,speed-190*dt);
+ if(keys.left)playerX-=1.8*dt;if(keys.right)playerX+=1.8*dt;playerX=Math.max(-.86,Math.min(.86,playerX));
+ road+=speed*dt*.006;score+=Math.floor(speed*dt*.08);spawn-=dt;
+ if(spawn<=0){traffic.push({lane:(Math.floor(Math.random()*3)-1)*.52,z:0,speed:35+Math.random()*65,color:['#d33d36','#e6e8ed','#2868a8','#d6a43c'][Math.floor(Math.random()*4)]});spawn=.8+Math.random()*.9}
+ traffic.forEach(a=>a.z+=(speed-a.speed)*dt*.0018);
+ traffic=traffic.filter(a=>a.z<1.25);
+ let px=w/2+playerX*w*.22,py=h*.79;
+ for(let a of traffic){let z=Math.max(0,a.z),y=h*(.12+z*.72),geom=roadGeom(y),cx=w/2+a.lane*(geom.r-geom.l)*.48,sz=.28+z*.8;
+ if(z>.78&&z<.98&&Math.abs(cx-px)<34&&Math.abs(y-py)<54){active=false;$('overlay').style.display='flex';$('overlay').querySelector('h1').textContent='مسابقه تمام شد';$('overlay').querySelector('.tag').textContent='امتیاز نهایی: '+score.toLocaleString('fa-IR');$('overlay').querySelector('p').innerHTML='با موترها برخورد کردی!<br>یک بار دیگر مسابقه بده و رکوردت را بهتر کن.';$('start').textContent='مسابقه دوباره';}}
+ $('speed').textContent=Math.round(speed).toLocaleString('fa-IR');$('score').textContent=score.toLocaleString('fa-IR');
+}
+function draw(){
+ let sky=x.createLinearGradient(0,0,0,h);sky.addColorStop(0,'#101b31');sky.addColorStop(.5,'#647080');sky.addColorStop(.51,'#263a30');sky.addColorStop(1,'#101b18');x.fillStyle=sky;x.fillRect(0,0,w,h);
+ // skyline
+ for(let i=0;i<15;i++){let bw=25+(i*17%45),bh=35+(i*31%90),bx=i*w/14;x.fillStyle=i%2?'#1b2930':'#26343a';x.fillRect(bx,h*.49-bh,bw,bh);for(let yy=h*.49-bh+8;yy<h*.49-5;yy+=14){x.fillStyle='#e6c47755';x.fillRect(bx+5,yy,4,5);x.fillRect(bx+15,yy,4,5)}}
+ // road
+ let topL=roadGeom(0),botL=roadGeom(h);x.fillStyle='#252a32';x.beginPath();x.moveTo(topL.l,0);x.lineTo(topL.r,0);x.lineTo(botL.r,h);x.lineTo(botL.l,h);x.closePath();x.fill();
+ // road edges
+ x.strokeStyle='#e9d39a';x.lineWidth=4;x.beginPath();x.moveTo(topL.l,0);x.lineTo(botL.l,h);x.moveTo(topL.r,0);x.lineTo(botL.r,h);x.stroke();
+ // lane dashed lines
+ for(let lane=1;lane<=2;lane++){for(let i=0;i<12;i++){let yy=((i/12+road*3)%1)*h,gg=roadGeom(yy),xx=gg.l+(gg.r-gg.l)*lane/3;x.fillStyle='#f6e8c5';x.fillRect(xx-2,yy,4,Math.max(8,yy*.045))}}
+ // traffic
+ traffic.forEach(a=>{let z=Math.max(0,a.z),y=h*(.12+z*.72),g=roadGeom(y),cx=w/2+a.lane*(g.r-g.l)*.48;car(cx,y,.28+z*.8,a.color)});
+ car(w/2+playerX*w*.22,h*.79,1.08,'#b52332',true);
+ // speed glow streaks
+ if(speed>150){x.strokeStyle='#ffffff22';for(let i=0;i<18;i++){let xx=(i*97+road*10000)%w;x.beginPath();x.moveTo(xx,h*.55);x.lineTo(xx-10,h);x.stroke()}}
+}
+})();
+</script></body></html>
